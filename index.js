@@ -33,7 +33,9 @@ exports.handler = (event, context, callback) => {
 
   const messageData = event_data.events && event_data.events[0];
   var id = messageData.source.userId;
-  if(messageData.source.groupId != null && messageData.source.groupId.length > 0){ //グループからのメッセージ
+
+   //グループからのメッセージ
+  if(messageData.source.groupId != null && messageData.source.groupId.length > 0){
     id = messageData.source.groupId;
   }
 
