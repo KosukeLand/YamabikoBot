@@ -2,7 +2,7 @@
 
 var AWS = require('aws-sdk');
 var dynamo = new AWS.DynamoDB({
-  region: process.env[REGION];
+  region: process.env['REGION'];
 });
 
 const https = require('https');
