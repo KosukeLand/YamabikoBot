@@ -54,7 +54,7 @@ exports.handler = (event, context, callback) => {
     // 初回アクセスユーザの処理(Insert DisplayName in DynamoDB)
     if (Object.keys(dynamoGetData).length == 0){
 
-      // Get displayName from Line
+      // ディスプレイネームを取得
       var options = {
         hostname: 'api.line.me',
         path: '/v2/bot/profile/' + id,
@@ -78,9 +78,11 @@ exports.handler = (event, context, callback) => {
             "YamabikoFlag":{"BOOL":true},
             "NickName":{"S":" "}
           };
+          // ディスプレイネームの登録
           dynamoPutItem(table,item);
         });
       });
+
       req.on('error', function(e) {
         var message = "通知に失敗しました. LINEから次のエラーが返りました: " + e.message;
         console.error(message);
@@ -101,7 +103,7 @@ exports.handler = (event, context, callback) => {
     }
 
 
-    // アクセス2回目のユーザの処理(Insert NickName in DynamoDB)
+    // アクセス2回目のユーザの処理(DynamoDBにニックネームを登録)
     else if(dynamoGetData.Item.NickName.S == " ") {
 
       if(messageData.message.type == "text"){
@@ -113,6 +115,8 @@ exports.handler = (event, context, callback) => {
 
         var response = "こんにちは！" + messageData.message.text + "さん！";
       }
+
+      // テキスト以外が返答されたら，ニックネーム入力を促す
       else{
         var response = "ニックネーム教えて欲しいな！";
       }
@@ -134,7 +138,7 @@ exports.handler = (event, context, callback) => {
       // 処理モード変更
       console.log("messageData.message.text: " + messageData.message.text);
       switch(messageData.message.text){
-        //  永続モード
+
         case "やまびこモード" :
         var response = "やまびこモードに変更！\nこのモードでは発言をリピートするよ！";
         var postData = JSON.stringify({
@@ -146,6 +150,7 @@ exports.handler = (event, context, callback) => {
         });
         postToLineBot(postData);
 
+        // YamabikoFlagの更新
         var table = "UserTable";
         var key = {"id":{"S":id}};
         var updateExpression = "set YamabikoFlag =:y" ;
@@ -167,6 +172,7 @@ exports.handler = (event, context, callback) => {
         });
         postToLineBot(postData);
 
+        // YamabikoFlagの更新
         var table = "UserTable";
         var key = {"id":{"S":id}};
         var updateExpression = "set YamabikoFlag =:y" ;
@@ -190,6 +196,7 @@ exports.handler = (event, context, callback) => {
         });
         postToLineBot(postData);
 
+        // ニックネームの消去
         var table = "UserTable";
         var key = {"id":{"S":id}};
         var updateExpression = "set NickName =:n" ;
