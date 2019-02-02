@@ -6,10 +6,10 @@ var dynamo = new AWS.DynamoDB({
 });
 
 const https = require('https');
-const querystring = require('querystring');
 
 var ChannelAccessToken = process.env['CHANNELACCESSTOKEN'];
-// var mode = [];
+var A3rtApiKey = process.env['A3RTAPIKEY'];
+
 
 var getParams = {
   "TableName": " ",
@@ -43,9 +43,9 @@ exports.handler = (event, context, callback) => {
   // DynamoDB上を検索し，ユーザ情報を取得
   getParams.Key.id = {"S": id};
   getParams.TableName = "UserTable";
-  dynamo.getItem(getParams,function(err,dynamoGetData){
-    if(err){
-      console.log("dynamoDB getItem err: " + err);
+  dynamo.getItem(getParams,function(error,dynamoGetData){
+    if(error){
+      console.log("dynamoDB getItem Error: " + error);
       callback(null, 'Success!');
     }
 
@@ -75,7 +75,7 @@ exports.handler = (event, context, callback) => {
           var item = {
             "id":  {"S":id},
             "Name":{"S":userName},
-            "YamabikoFlag":{"BOOL":true},
+            "ActionFlag":{"S":"やまびこ"},
             "NickName":{"S":" "}
           };
           // ディスプレイネームの登録
@@ -150,11 +150,11 @@ exports.handler = (event, context, callback) => {
         });
         postToLineBot(postData);
 
-        // YamabikoFlagの更新
+        // ActionFlagの更新
         var table = "UserTable";
         var key = {"id":{"S":id}};
-        var updateExpression = "set YamabikoFlag =:y" ;
-        var expressionAttributeValues ={":y":{"BOOL":true}};
+        var updateExpression = "set ActionFlag =:a" ;
+        var expressionAttributeValues ={":a":{"S":"やまびこ"}};
         dynamoUpdateItem(table,key,updateExpression,expressionAttributeValues);
 
         callback(null, 'Success!');
@@ -172,16 +172,15 @@ exports.handler = (event, context, callback) => {
         });
         postToLineBot(postData);
 
-        // YamabikoFlagの更新
+        // ActionFlagの更新
         var table = "UserTable";
         var key = {"id":{"S":id}};
-        var updateExpression = "set YamabikoFlag =:y" ;
-        var expressionAttributeValues ={":y":{"BOOL":false}};
+        var updateExpression = "set ActionFlag =:a" ;
+        var expressionAttributeValues ={":a":{"S":"やまびかない"}};
         dynamoUpdateItem(table,key,updateExpression,expressionAttributeValues);
 
         callback(null, 'Success!');
         break;
-
 
 
         //  非永続モード
@@ -200,15 +199,14 @@ exports.handler = (event, context, callback) => {
         var table = "UserTable";
         var key = {"id":{"S":id}};
         var updateExpression = "set NickName =:n" ;
-        var expressionAttributeValues ={":n":{"S":" "}};
+        var expressionAttributeValues = {":n":{"S":" "}};
         dynamoUpdateItem(table,key,updateExpression,expressionAttributeValues);
 
         callback(null, 'Success!');
         break;
 
-
-        case "ヘルプ" :
-        var response = "以下の単語を送信すると，モードが切り替わります\n ・やまびこモード\n ・やまびかないモード\n ・ニックネーム変更\n\n ・こんにちは";
+        case "AI":
+        var response = "AIモードに変更！\nA3rtが返答するよ！";
         var postData = JSON.stringify({
           "messages": [{
             "type": "text",
@@ -216,10 +214,17 @@ exports.handler = (event, context, callback) => {
           }],
           "to": id
         });
+
         postToLineBot(postData);
+
+        var table = "UserTable";
+        var key = {"id":{"S":id}};
+        var updateExpression = "set ActionFlag =:a";
+        var expressionAttributeValues = {":a":{"S":"AI"}};
+        dynamoUpdateItem(table,key,updateExpression,expressionAttributeValues);
+
         callback(null, 'Success!');
         break;
-
 
         case "こんにちは" :
         case "こんばんは" :
@@ -236,11 +241,25 @@ exports.handler = (event, context, callback) => {
         callback(null, 'Success!');
         break;
 
+
+        case "ヘルプ" :
+        var response = "以下の単語を送信すると，モードが切り替わります\n ・やまびこモード\n ・やまびかないモード\n ・ニックネーム変更\n・AI\n\n ・こんにちは";
+        var postData = JSON.stringify({
+          "messages": [{
+            "type": "text",
+            "text": response
+          }],
+          "to": id
+        });
+        postToLineBot(postData);
+        callback(null, 'Success!');
+        break;
+
         //////////////////// やまびこ or Not やまびこ　////////////////////
         default:
 
         // やまびこモード
-        if (dynamoGetData.Item.YamabikoFlag.BOOL == true){
+        if (dynamoGetData.Item.ActionFlag.S == "やまびこ"){
           // テキスト返答
           if(messageData.message.type == "text"){
             var postData = JSON.stringify({
@@ -266,17 +285,17 @@ exports.handler = (event, context, callback) => {
           }
           // エラー
           else{
-            console.log("Debug:");
+            console.log("Debug: MessageType is undefine");
           }
           callback(null, 'Success!');
         }
 
         // やまびかないモード
-        else if (dynamoGetData.Item.YamabikoFlag.BOOL == false){
+        else if (dynamoGetData.Item.ActionFlag.S == "やまびかない"){
           scanParams.TableName = "MentionTable";
-          dynamo.scan(scanParams, function(err,dynamoScanData){
-            if(err){
-              console.log("dynamoDB scanItem err: " + err);
+          dynamo.scan(scanParams, function(error,dynamoScanData){
+            if(error){
+              console.log("dynamoDB scanItem Error: " + error);
               callback(null, 'Success!');
             }
 
@@ -295,9 +314,14 @@ exports.handler = (event, context, callback) => {
           });
         }
 
-        // エラー
+        // A3rt連携モード
+        else if(dynamoGetData.Item.ActionFlag.S == "AI"){
+          var response = postToA3rt(messageData.message.text,id);
+          callback(null, 'Success!');
+        }
+
         else{
-          console.log("Debug:");
+          console.log('Error: ActionFlag is undefine')
           callback(null, 'Success!');
         }
         break;
@@ -315,8 +339,8 @@ var dynamoPutItem = function(table,item){
     "TableName": table,
     "Item": item
   };
-  dynamo.putItem(putParams, function(err,dynamoPutData){
-    console.log("dynamoDB putItem err: " + err);
+  dynamo.putItem(putParams, function(error,dynamoPutData){
+    console.log("dynamoDB putItem Error: " + error);
     context.done(null,dynamoPutData);
   });
 
@@ -329,8 +353,8 @@ var dynamoUpdateItem = function(table,key,updateExpression,expressionAttributeVa
     "UpdateExpression": updateExpression,
     "ExpressionAttributeValues":expressionAttributeValues
   };
-  dynamo.updateItem(updateParams, function(err,dynamoUpdateData){
-    console.log("dynamoDB updateItem err: " + err);
+  dynamo.updateItem(updateParams, function(error,dynamoUpdateData){
+    console.log("dynamoDB updateItem Error: " + error);
   });
 
 }
@@ -369,4 +393,39 @@ var postToLineBot = function(postData){
 
   req.end();
 
+}
+
+var postToA3rt = function(postQuery, id){
+
+  const request = require('request');
+  const smallTalkRequestUrl = 'https://api.a3rt.recruit-tech.co.jp/talk/v1/smalltalk';
+  const smallTalkRequestOption = {
+    url: smallTalkRequestUrl,
+    form: {
+      apikey: A3rtApiKey,
+      query: postQuery
+    }
+  };
+
+  request.post(smallTalkRequestOption, function(error, response, body){
+    if(!error && response.statusCode == 200){
+    console.log("Request Success.");
+    var response = JSON.parse(body).results[0].reply;
+    console.log("Request is: " + JSON.stringify(response));
+  }
+  else{
+    console.log("Request Error: " + error)
+    var response = JSON.parse(body).results[0].reply;
+    console.log("Request is: " + JSON.stringify(response));
+  }
+
+  var postData = JSON.stringify({
+      "messages": [{
+        "type": "text",
+        "text": response
+      }],
+      "to": id
+    });
+    postToLineBot(postData);
+  });
 }
